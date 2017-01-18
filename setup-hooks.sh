@@ -33,13 +33,11 @@ fi
 hooks_source="$(dirname -- $(rreadlink ${0}))/hooks"
 hooks_dest="${1:-$(git rev-parse --show-toplevel)/.git}/hooks"
 
-if [ ! -e ${hooks_source} ] && [ -d ${hooks_source} ]; then
+if [ ! -e ${hooks_source} ] || [ ! -d ${hooks_source} ]; then
    printf "%s\n"	"Something bad happens..."\
 					"Missed '${hooks_source}', which is hooks source dir!"
 	exit 1
-fi
-
-if [ ! -e ${hooks_dest} ] || [ ! -d ${hooks_dest} ]; then
+elif [ ! -e ${hooks_dest} ] || [ ! -d ${hooks_dest} ]; then
 	printf "%s\n"	"Local hooks dir '${hooks_dest}' not exist/not a dir!"\
 					"If You use '--git-dir' option, please specify full path to Your '.git' dir as argument fot this script."
 	exit 1
