@@ -1,0 +1,160 @@
+#! /usr/bin/env sh
+gitbin="$(which git)" || { printf '%s\n' 'Well, this is discouraging...' "Can't find git bin\! Is it installed?"; exit 1; }
+hooks_dest="${1:-$(cd "$(dirname -- "${self}")/.."; "${gitbin}" rev-parse --show-toplevel 2>/dev/null || pwd)/.git}/hooks"
+hooks_dest="$(normalize "${hooks_dest}")"
+
+if [ ! -e "${hooks_dest}" ] || [ ! -d "${hooks_dest}" ] || [ $(printf '%s' "${hooks_dest}" | grep -v '.git/hooks') ]; then
+	printf '%s\n'	"Local hooks dir '${hooks_dest}' is missing, not a dir or not in '.git' folder!" \
+					"If You use '--git-dir' option, please specify full path to Your '.git' dir as argument for this script." \
+					"Otherwise, copy this script inside worktree or (preferred) attach as submodule."
+	exit 1
+elif [ -e "${hooks_source}" ] && [ ! -d "${hooks_source}" ]; then
+	printf '%s\n' "Source of hooks '${hooks_source}' exist, but not a dir!"
+	exit 1
+elif [ ! -e "${hooks_source}" ]; then
+	mkdir -p "${hooks_source}"
+fi
+
+# ANSI escape sequence
+ESS="\x1b["
+
+# Menu header (each arg is line)
+set --\
+	'This setup will make soft links' \
+	"in '${hooks_dest}'" \
+	"to '${self}'" \
+	'When hook is (Installed), You may drop Your scripts in' \
+	"'${hooks_source}/<hook_name>.d'" \
+	''
+# Last line is block separator
+g_aHeader=$(asave "${@}")
+
+# Available hooks
+set --\
+	pre-commit prepare-commit-msg commit-msg post-commit \
+	applypatch-msg pre-applypatch post-applypatch \
+	pre-rebase post-rewrite post-checkout post-merge pre-push \
+	''
+g_aHooks=$(asave "${@}")
+
+# Prints msg (arg2+) on specified line (arg1)
+pline() {
+	_ln=1
+	[ $(expr "${1}" + 0 2>/dev/null) ] && [ "${1}" -gt 0 ] && _ln="${1}" && shift
+	printf '%b' "${ESS}${_ln};1H${*}${ESS}K"
+}
+
+# Prints menu header
+pheader() {
+	eval "set -- ${g_aHeader}"
+	_sline=0
+	for i in $(seq 1 "${#}"); do
+		_line="$((${_sline} + ${i}))"
+		eval _msg="\${"${i}"}"
+		pline "${_line}" "${_msg}"
+	done
+}
+
+# Prints menu hooks list & hooks state; if hook index (arg1) is provided - act on hook line only
+phooks() (
+	case "${1}" in
+		[1-9]|[1-9][0-9]) _hookid="${1}";;
+		*) _hookid="";;
+	esac
+	eval "set -- ${g_aHooks}"
+	_sline="$(printf '%s' "${g_aHeader}" | wc -l)"
+	for i in $(seq 1 "${#}"); do
+		[ x"${_hookid}" = x ] || i="${_hookid}"
+		eval _name="\${"${i}"}"
+		[ x"${_name}" = x ] && break
+		_line="$((${_sline} + ${i}))"
+		_msg="${i} ${_name}\t\t"
+		if [ x"$(rreadlink "${hooks_dest}/${_name}" 2>/dev/null)" = x"${self}" ]; then
+			_msg="${_msg}(Installed)"
+		elif [ -e "${hooks_dest}/${_name}" ] || [ -L "${hooks_dest}/${_name}" ]; then
+			_msg="${_msg}(Occupied by"
+			[ -e "${hooks_dest}/${_name}" ] && _msg="${_msg} other" || _msg="${_msg} broken"
+			[ -L "${hooks_dest}/${_name}" ] && _msg="${_msg} link!)" || _msg="${_msg} file!)"
+		fi
+		pline "${_line}" "${_msg}"
+		[ x"${_hookid}" = x ] || break
+	done
+	return 0
+)
+
+# Print menu status buffer
+# Call with args will add lines to buffer (arg is line)
+# Call without args will print and clear buffer
+pstatus() {
+	_input=$(asave "${@}")
+	if [ $(printf '%s' "${_input}" | wc -l) -gt 0 ]; then
+		eval "set -- ${g_aStatus} ${_input}"
+		g_aStatus=$(asave "${@}")
+	else
+		eval "set -- ${g_aStatus}"
+		[ $(expr "${1}" + 0 2>/dev/null) ] || eval "set -- 0 ${g_aStatus}" # First invocation fix
+		_count="${1}"
+		shift
+		[ "${#}" -gt "${_count}" ] && _count="${#}"
+		_sline="$(($(printf '%s' "${g_aHeader}" | wc -l) \
+					+ $(printf '%s' "${g_aHooks}" | wc -l)))"
+		for i in $(seq 1 "${_count}"); do
+			_line="$(expr "${_sline}" + "${i}")"
+			eval _msg="\${"${i}"}"
+			pline "${_line}" "${_msg}"
+		done
+		# Re-print last line for accurate cursor positioning
+		_line="$(expr "${_sline}" + "${#}")"
+		eval _msg="\${"${#}"}"
+		pline "${_line}" "${_msg}"
+		# Clear buffer and store count of printed lines in arg1
+		set -- "$(printf '%s' "${g_aStatus}" | wc -l)"
+		g_aStatus=$(asave "${@}")
+	fi
+}
+
+# Install/uninstall hook wrapper
+ihook() {
+	case "${1}" in
+		[1-9]|[1-9][0-9]) _hookid="${1}";;
+		*) return 0;;
+	esac
+	eval "set -- ${g_aHooks}"
+	eval _name="\${"${_hookid}"}"
+	[ x"${_name}" = x ] && return 0
+	if [ x"$(rreadlink "${hooks_dest}/${_name}" 2>/dev/null)" = x"${self}" ]; then
+		rm -f "${hooks_dest}/${_name}" 2>/dev/null \
+			|| pstatus  "Can't remove :(" \
+						"('rm -f ${hooks_dest}/${_name}' returned '${?}')"
+	else
+		if [ -e "${hooks_dest}/${_name}" ] || [ -L "${hooks_dest}/${_name}" ]; then
+			pstatus '/!\WARNING/!\ All content of:' \
+					"'${hooks_dest}/${_name}'" \
+					'Will be lost!!! Continue? (enter YES in capital letters): '
+			pstatus
+			read _ans
+			case "${_ans}" in
+				'YES') rm -f "${hooks_dest}/${_name}" 2>/dev/null \
+					||{ pstatus "Can't remove :(" \
+								"('rm -f ${hooks_dest}/${_name}' returned '${?}')"; \
+						return 0; };;
+				*) return 0;;
+			esac
+		fi
+		(cd ${hooks_dest}; ln -s "$(relpath "${hooks_dest}/${_name}" "${self}")" "${_name}")
+	fi
+}
+
+# Menu begin
+clear
+pheader
+phooks
+while :; do
+	pstatus "Please, enter number to operate on hook or 'q' to exit setup" ""
+	pstatus
+	read ui
+	case "${ui}" in
+		[1-9]|[1-9][0-9]) ihook "${ui}"; phooks "${ui}";;
+		q|Q) clear; exit 0;;
+	esac
+done
