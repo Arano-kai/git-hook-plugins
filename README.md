@@ -29,7 +29,8 @@ Moved `.git` to another place?
 
 Customize
 ---------
-Done by modifying vars in Opts zone of `hook-wrapper` (will be changed in future).
+Done by modifying vars in `Opts` zone of `hook-wrapper` (will be changed in future).
 Currently avialible:
 * Name and location of hooks subfolger (`git-hooks`).
+* Page size for hooks names during setup
 * Wrapper message prefix (`TAG`)

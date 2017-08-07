@@ -1,11 +1,12 @@
 #! /usr/bin/env sh
 set -e
 
-# Wrapper for run scripts in ${hooks_source}/<hook-name>.d
+# Wrapper for run scripts in ${g_hooks_source}/<hook-name>.d
 # Run it directly to setup
 
 # Opts
-hooks_source='../git-hooks' # Storage for <hook-name>.d (can be relative to this script)
+g_hooks_source='../git-hooks' # Storage for <hook-name>.d (can be relative to this script)
+g_page_size=20 # Maximum hooks per page
 TAG='[HOOK-WRAPPER]' # Prefix in logs
 
 # Find real path. Details on http://stackoverflow.com/a/29835459
@@ -89,7 +90,7 @@ setup() {
 
 wrapper() {
 	printf "\n${TAG}: %s\n" "Begin '${hook}'..."
-	hook_d="${hooks_source}/${hook}.d/"
+	hook_d="${g_hooks_source}/${hook}.d/"
 	if [ ! -e "${hook_d}" ] || [ ! -d "${hook_d}" ]; then
 		printf "${TAG}: %s\n" "Missed '${hook_d}', nothing to do..."
 		exit 0
@@ -116,9 +117,9 @@ wrapper() {
 IFS="$(printf '%b' '\n\t')"
 self="$(rreadlink "${0}")"
 hook="$(basename -- "${0}")"
-[ ! x"{hooks_source}" = x ] && [ "${hooks_source#/}" = "${hooks_source}" ] \
-	&& hooks_source="$(dirname -- "${self}")/${hooks_source}" \
-	|| hooks_source="$(dirname -- "${self}")/../git-hooks}"
+[ ! x"{g_hooks_source}" = x ] && [ "${g_hooks_source#/}" = "${g_hooks_source}" ] \
+	&& g_hooks_source="$(dirname -- "${self}")/${g_hooks_source}" \
+	|| g_hooks_source="$(dirname -- "${self}")/../git-hooks}"
 
 case "${hook}" in
 	"$(basename -- "${self}")") setup "${@}";;
