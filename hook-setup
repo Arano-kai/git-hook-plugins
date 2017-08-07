@@ -16,7 +16,7 @@ elif [ ! -e "${hooks_source}" ]; then
 fi
 
 # ANSI escape sequence
-ESS="\x1b["
+ESS="\033["
 
 # Menu header (each arg is line)
 set --\
