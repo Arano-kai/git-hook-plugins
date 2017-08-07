@@ -3,28 +3,33 @@ Implementing plugin-like version controlled hook system for git.
 
 Use
 ----------
-1. Clone this repo
-2. Copy content to subfolder of Your repo
-3. In hooks subfolder:
-  * Make softlink: `ln -s hook-wrapper <preferred-hook-name>`
-  * Make subfolder: `mkdir <preferred-hook-name>.d`
-  * Drop Your hook scripts to that subfolder
-    * Dont't forget set executable flag
-4. Add those files to git
-5. Run `setup-hooks.sh` helper script
-  * This will kindly install hooks, not overwriting existing ones
+1. a) Clone this repo and copy content to subfolder of Your repo (eg: `<reponame>/utils/git-hook-plugins`) or
+1. b) Connect this repo as git submodule.
+2. Create folder `git-hooks`  next to it (eg: `<reponame>/utils/git-hooks`), then in it:
+  * Make subfolder: `<preferred-hook-name>.d`.
+  * Drop Your hook scripts to that subfolder (dont't forget set executable flag).
+3. Add those files to git.
+4. Run `hook-wrapper` directly.
+  * This will call setup menu with further instructions.
 
 That's it! From now, every time hook is invoked, scripts in `<preferred-hook-name>.d` will be executed in sorted order.
 
 Add hooks
 ----------------
-* Do steps 3-5 from 'Use' section
+* Do steps 2-4 from 'Use' section.
 
 Delete hooks
 ------------
-* Remove `<preferred-hook-name>.d` from Your repo and remove `<preferred-hook-name>` from repo and `.git/hooks/`
-  * It is enough to remove the `<preferred-hook-name>.d` directory, but it will be a little spam in logs...
+* Run `hook-wrapper` directly to call setup menu.
+* Optionally, remove stalled hooks from `git-hooks`.
 
 Moved `.git` to another place?
 ------------------------------
-* Remove `hook-wrapper` from `.git/hooks/` and run `setup-hooks.sh` again
+* Run `hook-wrapper` directly to call setup menu.
+
+Customize
+---------
+Done by modifying vars in Opts zone of `hook-wrapper` (will be changed in future).
+Currently avialible:
+* Name and location of hooks subfolger (`git-hooks`).
+* Wrapper message prefix (`TAG`)
