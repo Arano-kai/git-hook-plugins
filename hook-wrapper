@@ -11,7 +11,7 @@ TAG='[HOOK-WRAPPER]' # Prefix in logs
 
 # Find real path. Details on http://stackoverflow.com/a/29835459
 rreadlink() (
-	target="${1}" fname= targetDir= CDPATH=
+	target="$1" fname= targetDir= CDPATH=
 	{ \unalias command; \unset -f command; } >/dev/null 2>&1 || true
 	[ -n "${ZSH_VERSION}" ] && options[POSIX_BUILTINS]=on
 	while :; do
@@ -52,15 +52,15 @@ afind () {
 
 # Remove trailing and squeeze multiple '/'
 normalize() {
-	printf '%s' "${1}" | tr -s '/' | sed 's^/$^^'
+	printf '%s' "$1" | tr -s '/' | sed 's^/$^^'
 }
 
 # Build relative path from arg1 to arg2
 # Return arg2, if has not equal parts
 # Require absolute paths as args & confused with '.' & '..'!
 relpath () (
-	_from="$(normalize "${1}")"
-	_to="$(normalize "${2}")"
+	_from="$(normalize "$1")"
+	_to="$(normalize "$2")"
 	[ ! x"${_from#/}" = x"${_from}" ] && [ ! x"${_to#/}" = x"${_to}" ] || { printf 'relpath: %s\n' 'Absolute paths is required!' "arg1='${_from}'" "arg2='${_to}'" >&2; return 1; }
 	[ x"$(printf '%s ' "${_from}" "${_to}" | grep -E '\./' 2>/dev/null)" = x ] || { printf 'relpath: %s\n' "Use of '.'/'..' in absolute path is confusing..." "arg1='${_from}'" "arg2='${_to}'" >&2; return 1; }
 	_from="${_from#/}"
@@ -71,12 +71,12 @@ relpath () (
 	set -- ${_to}
 	IFS="${_OIFS}"
 	while shift; do # First shift remove emty elem
-		[ x"${_from#"${1}"}" = x"${_from}" ] && break
-		_from="${_from#"${1}"/}"
-		_to="${_to#/"${1}"}"
+		[ x"${_from#"$1"}" = x"${_from}" ] && break
+		_from="${_from#"$1"/}"
+		_to="${_to#/"$1"}"
 	done
 	_steps=$(printf '%s' "${_from}" | tr "/\n" "\n/" | wc -l) # depth remain
-	[ "${_depth}" -eq "${_steps}" ] && printf '%s' "${_to}" && return 0 # no equal parts found
+	[ ${_depth} -eq ${_steps} ] && printf '%s' "${_to}" && return 0 # no equal parts found
 	_ret=
 	for i in $(seq 1 ${_steps}); do
 		_ret="../${_ret}"
@@ -97,26 +97,26 @@ wrapper() {
 	else
 		args=$(asave "${@}")
 		eval "set -- $(afind "${hook_d}" -maxdepth 1 -type f | sort -n)"
-		[ "${#}" -eq 0 ] && printf "${TAG}: %s\n" "Empty '$(basename -- "${hook_d}")', nothing to do..."
+		[ "$#" -eq 0 ] && printf "${TAG}: %s\n" "Empty '$(basename -- "${hook_d}")', nothing to do..."
 		for file; do
 			if [ -s ${file} ] && [ -x ${file} ]; then
 				printf "${TAG}: %s\n" "Running '$(basename -- "${file}")'..." #"Args: ${*}"
-				(eval "set -- ${args}"; "${file}" "${@}"); err="${?}"
-				[ "${err}" -ne 0 ] && printf "${TAG}: %s\n" "...Failed with '${err}'" >&2 && exit "${err}"
+				(eval "set -- ${args}"; "${file}" "${@}"); err=$?
+				[ ${err} -ne 0 ] && printf "${TAG}: %s\n" "...Failed with '${err}'" >&2 && exit ${err}
 			else
 				printf "${TAG}: %s\n" "Empty/non-exec ${file}, ignoring..."
 				continue
 			fi
 		done
 	fi
-	printf "${TAG}: %s\n" "Completed '$(basename -- "${0}")'."
+	printf "${TAG}: %s\n" "Completed '$(basename -- "$0")'."
 	return 0
 }
 
 # Begin
 IFS="$(printf '%b' '\n\t')"
-self="$(rreadlink "${0}")"
-hook="$(basename -- "${0}")"
+self="$(rreadlink "$0")"
+hook="$(basename -- "$0")"
 [ ! x"{g_hooks_source}" = x ] && [ "${g_hooks_source#/}" = "${g_hooks_source}" ] \
 	&& g_hooks_source="$(dirname -- "${self}")/${g_hooks_source}" \
 	|| g_hooks_source="$(dirname -- "${self}")/../git-hooks}"
