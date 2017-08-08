@@ -90,7 +90,7 @@ setup() {
 
 wrapper() {
 	printf "\n${TAG}: %s\n" "Begin '${hook}'..."
-	hook_d="${g_hooks_source}/${hook}.d/"
+	hook_d="$(rreadlink "${g_hooks_source}/${hook}.d/")"
 	if [ ! -e "${hook_d}" ] || [ ! -d "${hook_d}" ]; then
 		printf "${TAG}: %s\n" "Missed '${hook_d}', nothing to do..."
 		exit 0
