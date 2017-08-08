@@ -47,7 +47,7 @@ asave () {
 afind () {
 	find "$@" -exec sh -c "for i do printf %s\\\\n \"\${i}\" \\
 	| sed \"s/'/'\\\\\\\\''/g;1s/^/'/;\\\$s/\\\$/' \\\\\\\\/\"
-	done" dummy '{}' +
+	done; printf '%s\n' ' '" dummy '{}' +
 }
 
 # Remove trailing and squeeze multiple '/'
@@ -96,7 +96,7 @@ wrapper() {
 		exit 0
 	else
 		args=$(asave "${@}")
-		eval "set -- $(afind "${hook_d}" -maxdepth 1 -type f | sort -n)"
+		eval "set -- $(afind "${hook_d}" -maxdepth 1 -type f | sort -n | sed '/^[[:space:]]*$/d'; printf '%s\n' ' ' )"
 		[ "$#" -eq 0 ] && printf "${TAG}: %s\n" "Empty '$(basename -- "${hook_d}")', nothing to do..."
 		for file; do
 			if [ -s ${file} ] && [ -x ${file} ]; then
@@ -104,7 +104,7 @@ wrapper() {
 				(eval "set -- ${args}"; "${file}" "${@}"); err=$?
 				[ ${err} -ne 0 ] && printf "${TAG}: %s\n" "...Failed with '${err}'" >&2 && exit ${err}
 			else
-				printf "${TAG}: %s\n" "Empty/non-exec ${file}, ignoring..."
+				printf "${TAG}: %s\n" "Empty/non-exec '$(basename -- "${file}")', ignoring..."
 				continue
 			fi
 		done
