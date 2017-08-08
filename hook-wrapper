@@ -50,40 +50,6 @@ afind () {
 	done; printf '%s\n' ' '" dummy '{}' +
 }
 
-# Remove trailing and squeeze multiple '/'
-normalize() {
-	printf '%s' "$1" | tr -s '/' | sed 's^/$^^'
-}
-
-# Build relative path from arg1 to arg2
-# Return arg2, if has not equal parts
-# Require absolute paths as args & confused with '.' & '..'!
-relpath () (
-	_from="$(normalize "$1")"
-	_to="$(normalize "$2")"
-	[ ! x"${_from#/}" = x"${_from}" ] && [ ! x"${_to#/}" = x"${_to}" ] || { printf 'relpath: %s\n' 'Absolute paths is required!' "arg1='${_from}'" "arg2='${_to}'" >&2; return 1; }
-	[ x"$(printf '%s ' "${_from}" "${_to}" | grep -E '\./' 2>/dev/null)" = x ] || { printf 'relpath: %s\n' "Use of '.'/'..' in absolute path is confusing..." "arg1='${_from}'" "arg2='${_to}'" >&2; return 1; }
-	_from="${_from#/}"
-	_depth=$(printf '%s' "${_from}" | tr "/\n" "\n/" | wc -l) # depth to root
-	# Eat equal parts
-	_OIFS="${IFS}"
-	IFS="/"
-	set -- ${_to}
-	IFS="${_OIFS}"
-	while shift; do # First shift remove emty elem
-		[ x"${_from#"$1"}" = x"${_from}" ] && break
-		_from="${_from#"$1"/}"
-		_to="${_to#/"$1"}"
-	done
-	_steps=$(printf '%s' "${_from}" | tr "/\n" "\n/" | wc -l) # depth remain
-	[ ${_depth} -eq ${_steps} ] && printf '%s' "${_to}" && return 0 # no equal parts found
-	_ret=
-	for i in $(seq 1 ${_steps}); do
-		_ret="../${_ret}"
-	done
-	printf '%s' "${_ret}${_to#/}"
-)
-
 setup() {
 	. "$(dirname -- "${self}")/hook-setup"
 }
