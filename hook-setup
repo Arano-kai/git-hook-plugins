@@ -2,17 +2,19 @@
 gitbin="$(which git)" || { printf '%s\n' 'Well, this is discouraging...' "Can't find git bin\! Is it installed?"; exit 1; }
 hooks_dest="${1:-$(cd "$(dirname -- "${self}")/.."; "${gitbin}" rev-parse --show-toplevel 2>/dev/null || pwd)/.git}/hooks"
 hooks_dest="$(normalize "${hooks_dest}")"
+g_iHooksPage=0
+g_iHooksPageSize="${g_page_size:=20}"
 
 if [ ! -e "${hooks_dest}" ] || [ ! -d "${hooks_dest}" ] || [ $(printf '%s' "${hooks_dest}" | grep -v '.git/hooks') ]; then
 	printf '%s\n'	"Local hooks dir '${hooks_dest}' is missing, not a dir or not in '.git' folder!" \
 					"If You use '--git-dir' option, please specify full path to Your '.git' dir as argument for this script." \
 					"Otherwise, copy this script inside worktree or (preferred) attach as submodule."
 	exit 1
-elif [ -e "${hooks_source}" ] && [ ! -d "${hooks_source}" ]; then
-	printf '%s\n' "Source of hooks '${hooks_source}' exist, but not a dir!"
+elif [ -e "${g_hooks_source}" ] && [ ! -d "${g_hooks_source}" ]; then
+	printf '%s\n' "Source of hooks '${g_hooks_source}' exist, but not a dir!"
 	exit 1
-elif [ ! -e "${hooks_source}" ]; then
-	mkdir -p "${hooks_source}"
+elif [ ! -e "${g_hooks_source}" ]; then
+	mkdir -p "${g_hooks_source}"
 fi
 
 # ANSI escape sequence
@@ -24,7 +26,7 @@ set --\
 	"in '${hooks_dest}'" \
 	"to '${self}'" \
 	'When hook is (Installed), You may drop Your scripts in' \
-	"'${hooks_source}/<hook_name>.d'" \
+	"'${g_hooks_source}/<hook_name>.d'" \
 	''
 # Last line is block separator
 g_aHeader=$(asave "${@}")
@@ -33,42 +35,66 @@ g_aHeader=$(asave "${@}")
 set --\
 	pre-commit prepare-commit-msg commit-msg post-commit \
 	applypatch-msg pre-applypatch post-applypatch \
-	pre-rebase post-rewrite post-checkout post-merge pre-push \
+	pre-rebase post-rewrite post-checkout post-merge pre-push
+g_aHooks=$(asave "${@}")
+
+if git flow version >/dev/null 2>&1; then
+	eval "set -- $g_aHooks" \
+		filter-flow-hotfix-finish-tag-message filter-flow-hotfix-start-version filter-flow-release-branch-tag-message \
+		filter-flow-release-finish-tag-message filter-flow-release-start-version post-flow-bugfix-delete \
+		post-flow-bugfix-finish post-flow-bugfix-publish post-flow-bugfix-pull post-flow-bugfix-start post-flow-bugfix-track \
+		post-flow-feature-delete post-flow-feature-finish post-flow-feature-publish post-flow-feature-pull post-flow-feature-start \
+		post-flow-feature-track post-flow-hotfix-delete post-flow-hotfix-finish post-flow-hotfix-publish post-flow-hotfix-start \
+		post-flow-release-branch post-flow-release-delete post-flow-release-finish post-flow-release-publish \
+		post-flow-release-start post-flow-release-track pre-flow-feature-delete pre-flow-feature-finish pre-flow-feature-publish \
+		pre-flow-feature-pull pre-flow-feature-start pre-flow-feature-track pre-flow-hotfix-delete pre-flow-hotfix-finish \
+		pre-flow-hotfix-publish pre-flow-hotfix-start pre-flow-release-branch pre-flow-release-delete pre-flow-release-finish \
+		pre-flow-release-publish pre-flow-release-start pre-flow-release-track
+	g_aHooks=$(asave "${@}")
+fi
+
+eval "set -- $g_aHooks" \
 	''
 g_aHooks=$(asave "${@}")
 
 # Prints msg (arg2+) on specified line (arg1)
 pline() {
 	_ln=1
-	[ $(expr "${1}" + 0 2>/dev/null) ] && [ "${1}" -gt 0 ] && _ln="${1}" && shift
-	printf '%b' "${ESS}${_ln};1H${*}${ESS}K"
+	[ $(expr $1 + 0 2>/dev/null) ] && [ $1 -gt 0 ] && _ln=$1 && shift
+	printf '%b' "${ESS}${_ln};1H$*${ESS}K"
 }
 
 # Prints menu header
 pheader() {
 	eval "set -- ${g_aHeader}"
 	_sline=0
-	for i in $(seq 1 "${#}"); do
+	for i in $(seq 1 $#); do
 		_line="$((${_sline} + ${i}))"
-		eval _msg="\${"${i}"}"
+		eval _msg="\$${i}"
 		pline "${_line}" "${_msg}"
 	done
 }
 
 # Prints menu hooks list & hooks state; if hook index (arg1) is provided - act on hook line only
-phooks() (
-	case "${1}" in
-		[1-9]|[1-9][0-9]) _hookid="${1}";;
-		*) _hookid="";;
-	esac
+phooks() {
+	_arg=$1
+	_hookid=""
 	eval "set -- ${g_aHooks}"
-	_sline="$(printf '%s' "${g_aHeader}" | wc -l)"
-	for i in $(seq 1 "${#}"); do
-		[ x"${_hookid}" = x ] || i="${_hookid}"
-		eval _name="\${"${i}"}"
+	case "${_arg}" in
+		[1-9]|[1-9][0-9]) _hookid=${_arg};;
+		n|N) [ $((${g_iHooksPage} * ${g_iHooksPageSize})) -le $# ] && g_iHooksPage=$((g_iHooksPage + 1));;
+		p|P) [ ${g_iHooksPage} -gt 0 ] && g_iHooksPage=$((g_iHooksPage - 1));;
+	esac
+	_sline=$(printf '%s' "${g_aHeader}" | wc -l)
+	for i in $(seq $((1 + (${g_iHooksPage} * ${g_iHooksPageSize}))) $((($g_iHooksPage + 1) * ${g_iHooksPageSize}))); do
+		[ ! x"${_hookid}" = x ] \
+			&& [ ${_hookid} -gt $((${g_iHooksPage} * ${g_iHooksPageSize})) ] \
+			&& [ ${_hookid} -le $((($g_iHooksPage + 1) * ${g_iHooksPageSize})) ] \
+			&& i=${_hookid}
+		eval _name="\$${i}"
 		[ x"${_name}" = x ] && break
-		_line="$((${_sline} + ${i}))"
-		_msg="${i} ${_name}\t\t"
+		_line=$((${_sline} + ${i} - (${g_iHooksPage} * ${g_iHooksPageSize})))
+		_msg="${i} ${_name}  "
 		if [ x"$(rreadlink "${hooks_dest}/${_name}" 2>/dev/null)" = x"${self}" ]; then
 			_msg="${_msg}(Installed)"
 		elif [ -e "${hooks_dest}/${_name}" ] || [ -L "${hooks_dest}/${_name}" ]; then
@@ -76,11 +102,11 @@ phooks() (
 			[ -e "${hooks_dest}/${_name}" ] && _msg="${_msg} other" || _msg="${_msg} broken"
 			[ -L "${hooks_dest}/${_name}" ] && _msg="${_msg} link!)" || _msg="${_msg} file!)"
 		fi
-		pline "${_line}" "${_msg}"
-		[ x"${_hookid}" = x ] || break
+		pline ${_line} "${_msg}"
+		[ ! x"${_hookid}" = x ] && break
 	done
 	return 0
-)
+}
 
 # Print menu status buffer
 # Call with args will add lines to buffer (arg is line)
@@ -92,21 +118,23 @@ pstatus() {
 		g_aStatus=$(asave "${@}")
 	else
 		eval "set -- ${g_aStatus}"
-		[ $(expr "${1}" + 0 2>/dev/null) ] || eval "set -- 0 ${g_aStatus}" # First invocation fix
-		_count="${1}"
+		[ $(expr $1 + 0 2>/dev/null) ] || eval "set -- 0 ${g_aStatus}" # First invocation fix
+		_count=1
 		shift
-		[ "${#}" -gt "${_count}" ] && _count="${#}"
-		_sline="$(($(printf '%s' "${g_aHeader}" | wc -l) \
-					+ $(printf '%s' "${g_aHooks}" | wc -l)))"
-		for i in $(seq 1 "${_count}"); do
-			_line="$(expr "${_sline}" + "${i}")"
-			eval _msg="\${"${i}"}"
-			pline "${_line}" "${_msg}"
+		[ $# -gt ${_count} ] && _count=$#
+		_sline=$(($(printf '%s' "${g_aHeader}" | wc -l) + ${g_iHooksPageSize}))
+		[ $(((${g_iHooksPage} + 1) * ${g_iHooksPageSize})) -gt $(printf '%s' "${g_aHooks}" | wc -l) ] \
+			&& _sline=$((${_sline} - ${g_iHooksPageSize} * (${g_iHooksPage} + 1) % $(printf '%s' "${g_aHooks}" | wc -l))) \
+			&& _count=$((${_count} + ${g_iHooksPageSize} * (${g_iHooksPage} + 1) % $(printf '%s' "${g_aHooks}" | wc -l)))
+		for i in $(seq 1 ${_count}); do
+			_line=$((${_sline} + ${i}))
+			eval _msg="\$${i}"
+			pline ${_line} "${_msg}"
 		done
 		# Re-print last line for accurate cursor positioning
-		_line="$(expr "${_sline}" + "${#}")"
-		eval _msg="\${"${#}"}"
-		pline "${_line}" "${_msg}"
+		_line=$(( ${_sline} + $#))
+		eval _msg="\$$#"
+		pline ${_line} "${_msg}"
 		# Clear buffer and store count of printed lines in arg1
 		set -- "$(printf '%s' "${g_aStatus}" | wc -l)"
 		g_aStatus=$(asave "${@}")
@@ -115,12 +143,12 @@ pstatus() {
 
 # Install/uninstall hook wrapper
 ihook() {
-	case "${1}" in
-		[1-9]|[1-9][0-9]) _hookid="${1}";;
+	case $1 in
+		[1-9]|[1-9][0-9]) _hookid=$1;;
 		*) return 0;;
 	esac
 	eval "set -- ${g_aHooks}"
-	eval _name="\${"${_hookid}"}"
+	eval _name="\$${_hookid}"
 	[ x"${_name}" = x ] && return 0
 	if [ x"$(rreadlink "${hooks_dest}/${_name}" 2>/dev/null)" = x"${self}" ]; then
 		rm -f "${hooks_dest}/${_name}" 2>/dev/null \
@@ -150,11 +178,13 @@ clear
 pheader
 phooks
 while :; do
-	pstatus "Please, enter number to operate on hook or 'q' to exit setup" ""
+	_test2=$g_iHooksPage
+	pstatus "Please, enter number to operate on hook, 'n'/'p' for next/previous page or 'q' to exit setup" ""
 	pstatus
 	read ui
 	case "${ui}" in
 		[1-9]|[1-9][0-9]) ihook "${ui}"; phooks "${ui}";;
+		n|N|p|P) phooks "${ui}";;
 		q|Q) clear; exit 0;;
 	esac
 done
